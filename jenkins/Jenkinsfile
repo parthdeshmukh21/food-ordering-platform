@@ -1,0 +1,112 @@
+pipeline {
+agent any
+
+environment {
+    DOCKER_USER = "parthh21"
+    IMAGE_TAG = "v1"
+}
+
+stages {
+
+    stage('Checkout') {
+        steps {
+            checkout scm
+        }
+    }
+
+    stage('Build User Service') {
+        steps {
+            dir('user-service') {
+                sh 'mvn clean package'
+            }
+        }
+    }
+
+    stage('Build Order Service') {
+        steps {
+            dir('order-service') {
+                sh 'mvn clean package'
+            }
+        }
+    }
+
+    stage('Build Notification Service') {
+        steps {
+            dir('notification-service') {
+                sh 'mvn clean package'
+            }
+        }
+    }
+
+    stage('Docker Build') {
+        steps {
+
+            dir('user-service') {
+                sh "docker build -t ${DOCKER_USER}/user-service:${IMAGE_TAG} ."
+            }
+
+            dir('order-service') {
+                sh "docker build -t ${DOCKER_USER}/order-service:${IMAGE_TAG} ."
+            }
+
+            dir('notification-service') {
+                sh "docker build -t ${DOCKER_USER}/notification-service:${IMAGE_TAG} ."
+            }
+        }
+    }
+
+    stage('Docker Login') {
+        steps {
+            withCredentials([
+                usernamePassword(
+                    credentialsId: 'dockerhub-creds',
+                    usernameVariable: 'USERNAME',
+                    passwordVariable: 'PASSWORD'
+                )
+            ]) {
+
+                sh '''
+                echo $PASSWORD | docker login -u $USERNAME --password-stdin
+                '''
+            }
+        }
+    }
+
+    stage('Docker Push') {
+        steps {
+
+            sh "docker push ${DOCKER_USER}/user-service:${IMAGE_TAG}"
+
+            sh "docker push ${DOCKER_USER}/order-service:${IMAGE_TAG}"
+
+            sh "docker push ${DOCKER_USER}/notification-service:${IMAGE_TAG}"
+        }
+    }
+
+    stage('Deploy To Kubernetes') {
+        steps {
+
+            sh 'kubectl apply -f k8s/food-ordering/user-service/'
+
+            sh 'kubectl apply -f k8s/food-ordering/order-service/'
+
+            sh 'kubectl apply -f k8s/food-ordering/notification-service/'
+        }
+    }
+
+}
+
+post {
+
+    success {
+        echo 'Pipeline Completed Successfully'
+    }
+
+    failure {
+        echo 'Pipeline Failed'
+    }
+}
+```
+
+}
+
