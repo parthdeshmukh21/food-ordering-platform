@@ -1,119 +1,104 @@
 pipeline {
-agent any
+    agent any
 
-environment {
-    DOCKER_USER = "parthh21"
-    IMAGE_TAG = "v1"
-}
-
-stages {
-
-    stage('Checkout') {
-        steps {
-            checkout scm
-        }
+    environment {
+        DOCKER_USER = "parthh21"
+        IMAGE_TAG = "v1"
     }
 
-    stage('Build User Service') {
-        steps {
-            dir('user-service') {
-		sh '/opt/maven/bin/mvn clean package'
-            }
+    stages {
 
-        }
-    }
-
-    stage('Build Order Service') {
-        steps {
-            dir('order-service') {
-
-		sh '/opt/maven/bin/mvn clean package'
+        stage('Checkout') {
+            steps {
+                checkout scm
             }
         }
-    }
 
-    stage('Build Notification Service') {
-        steps {
-            dir('notification-service') {
-		
-		sh '/opt/maven/bin/mvn clean package'
+        stage('Build User Service') {
+            steps {
+                dir('user-service') {
+                    sh '/opt/maven/bin/mvn clean package'
+                }
             }
         }
-    }
 
-    stage('Docker Build') {
-        steps {
-
-            dir('user-service') {
-                sh "docker build -t ${DOCKER_USER}/user-service:${IMAGE_TAG} ."
-            }
-
-            dir('order-service') {
-                sh "docker build -t ${DOCKER_USER}/order-service:${IMAGE_TAG} ."
-            }
-
-            dir('notification-service') {
-                sh "docker build -t ${DOCKER_USER}/notification-service:${IMAGE_TAG} ."
+        stage('Build Order Service') {
+            steps {
+                dir('order-service') {
+                    sh '/opt/maven/bin/mvn clean package'
+                }
             }
         }
-    }
 
-    stage('Docker Login') {
-        steps {
-            withCredentials([
-                usernamePassword(
-                    credentialsId: 'dockerhub-creds',
-                    usernameVariable: 'USERNAME',
-                    passwordVariable: 'PASSWORD'
-                )
-            ]) {
+        stage('Build Notification Service') {
+            steps {
+                dir('notification-service') {
+                    sh '/opt/maven/bin/mvn clean package'
+                }
+            }
+        }
 
+        stage('Docker Build') {
+            steps {
+
+                dir('user-service') {
+                    sh "docker build -t ${DOCKER_USER}/user-service:${IMAGE_TAG} ."
+                }
+
+                dir('order-service') {
+                    sh "docker build -t ${DOCKER_USER}/order-service:${IMAGE_TAG} ."
+                }
+
+                dir('notification-service') {
+                    sh "docker build -t ${DOCKER_USER}/notification-service:${IMAGE_TAG} ."
+                }
+            }
+        }
+
+        stage('Docker Login') {
+            steps {
+                withCredentials([
+                    usernamePassword(
+                        credentialsId: 'dockerhub-creds',
+                        usernameVariable: 'USERNAME',
+                        passwordVariable: 'PASSWORD'
+                    )
+                ]) {
+                    sh '''
+                    echo $PASSWORD | docker login -u $USERNAME --password-stdin
+                    '''
+                }
+            }
+        }
+
+        stage('Docker Push') {
+            steps {
+                sh "docker push ${DOCKER_USER}/user-service:${IMAGE_TAG}"
+                sh "docker push ${DOCKER_USER}/order-service:${IMAGE_TAG}"
+                sh "docker push ${DOCKER_USER}/notification-service:${IMAGE_TAG}"
+            }
+        }
+
+        stage('Deploy To Kubernetes') {
+            steps {
                 sh '''
-                echo $PASSWORD | docker login -u $USERNAME --password-stdin
+                export KUBECONFIG=/var/lib/jenkins/.kube/config
+
+                /usr/local/bin/kubectl apply -f k8s/food-ordering/user-service/
+                /usr/local/bin/kubectl apply -f k8s/food-ordering/order-service/
+                /usr/local/bin/kubectl apply -f k8s/food-ordering/notification-service/
                 '''
             }
         }
     }
 
-    stage('Docker Push') {
-        steps {
+    post {
+        success {
+            echo 'Pipeline Completed Successfully'
+        }
 
-            sh "docker push ${DOCKER_USER}/user-service:${IMAGE_TAG}"
-
-            sh "docker push ${DOCKER_USER}/order-service:${IMAGE_TAG}"
-
-            sh "docker push ${DOCKER_USER}/notification-service:${IMAGE_TAG}"
+        failure {
+            echo 'Pipeline Failed'
         }
     }
-
-    stage('Deploy To Kubernetes') {
-        steps {
-		sh '''
-export KUBECONFIG=/var/lib/jenkins/.kube/config
-
-/usr/local/bin/kubectl apply -f k8s/food-ordering/user-service/
-
-/usr/local/bin/kubectl apply -f k8s/food-ordering/order-service/
-
-/usr/local/bin/kubectl apply -f k8s/food-ordering/notification-service/
-'''
-
-        }
-    }
-
 }
-
-post {
-
-    success {
-        echo 'Pipeline Completed Successfully'
-    }
-
-    failure {
-        echo 'Pipeline Failed'
-    }
-}
-```
-
-}
-
