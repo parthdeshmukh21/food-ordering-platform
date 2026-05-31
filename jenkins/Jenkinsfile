@@ -17,15 +17,17 @@ stages {
     stage('Build User Service') {
         steps {
             dir('user-service') {
-                sh 'mvn clean package'
+		sh '/opt/maven/bin/mvn clean package'
             }
+
         }
     }
 
     stage('Build Order Service') {
         steps {
             dir('order-service') {
-                sh 'mvn clean package'
+
+		sh '/opt/maven/bin/mvn clean package'
             }
         }
     }
@@ -33,7 +35,8 @@ stages {
     stage('Build Notification Service') {
         steps {
             dir('notification-service') {
-                sh 'mvn clean package'
+		
+		sh '/opt/maven/bin/mvn clean package'
             }
         }
     }
@@ -85,12 +88,16 @@ stages {
 
     stage('Deploy To Kubernetes') {
         steps {
+		sh '''
+export KUBECONFIG=/var/lib/jenkins/.kube/config
 
-            sh 'kubectl apply -f k8s/food-ordering/user-service/'
+/usr/local/bin/kubectl apply -f k8s/food-ordering/user-service/
 
-            sh 'kubectl apply -f k8s/food-ordering/order-service/'
+/usr/local/bin/kubectl apply -f k8s/food-ordering/order-service/
 
-            sh 'kubectl apply -f k8s/food-ordering/notification-service/'
+/usr/local/bin/kubectl apply -f k8s/food-ordering/notification-service/
+'''
+
         }
     }
 
